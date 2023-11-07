@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Pong</title>
+		<style>
+			* {
+				padding: 0;
+				margin: 0;
+			}
+
+			canvas {
+				background: #808080;
+				display: block;
+				margin: 0 auto;
+                cursor: none;
+			}
+		</style>
+	</head>
+
+	<body>
+		<canvas id="canvas"></canvas>
+
+		<script>
+			let canvas, ctx;
+			let paddleUp,
+				paddleDown = false;
+
+			let ball, paddleOne, paddleTwo;
+
+			let animationInterval; // = setInterval(draw, 10);
+			const paddleHeight = 75;
+			const paddleWidth = 10;
+			const paddleMoveSpeed = 5;
+			const aiMoveSpeed = 3;
+			const ballXVelocity = 5;
+            const yDeflectionFactor = 5;
+
+			function initialize() {
+				canvas = document.getElementById("canvas");
+				ctx = canvas.getContext("2d");
+				canvas.width = Math.min(800, window.visualViewport.width);
+				canvas.height = Math.min(600, window.visualViewport.height);
+
+				document.addEventListener(
+					"keydown",
+					(e) => {
+						if (e.key === "ArrowUp" || e.key === "Up") {
+							paddleUp = true;
+						} else if (e.key === "ArrowDown" || e.key === "Down") {
+							paddleDown = true;
+						} else if (e.key === " ") {
+							startAnimation();
+						}
+					},
+					false
+				);
+
+				document.addEventListener(
+					"keyup",
+					(e) => {
+						if (e.key === "ArrowUp" || e.key === "Up") {
+							paddleUp = false;
+						} else if (e.key === "ArrowDown" || e.key === "Down") {
+							paddleDown = false;
+						}
+					},
+					false
+				);
+
+				resetGame();
+				startAnimation();
+				// draw();
+				canvas.addEventListener("click", startAnimation);
+			}
+
+			function resetGame() {
+				paddleUp = false;
+				paddleDown = false;
+
+				ball = {
+					x: canvas.width / 2,
+					y: canvas.height / 2,
+					vx: ballXVelocity,
+					vy: 0,
+					radius: 10,
+					color: "black",
+					draw() {
+						ctx.beginPath();
+
+						ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+						ctx.closePath();
+						ctx.fillStyle = this.color;
+						ctx.fill();
+					},
+					adjustDeltaV(paddle) {
+						const paddleMinY = paddle.y - this.radius;
+						const paddleMaxY = paddle.y + paddle.height + this.radius;
+						const ballStrikeRatio = (this.y - paddleMinY) / (paddleMaxY - paddleMinY);
+						// const bounceDegree = ballStrikeRatio * 180;
+
+                        // 0 is moving straight up, 1 is straigh down, 0.5 is no y movement
+						this.vy = this.vy + (ballStrikeRatio - 0.5) * yDeflectionFactor;
+					},
+				};
+
+				paddleOne = {
+					x: 10,
+					y: canvas.height / 2 - paddleHeight / 2,
+					width: paddleWidth,
+					height: paddleHeight,
+					color: "black",
+					draw() {
+						ctx.fillStyle = this.color;
+						ctx.fillRect(this.x, this.y, this.width, this.height);
+					},
+				};
+
+				paddleTwo = {
+					x: canvas.width - 10 - paddleWidth,
+					y: canvas.height / 2 - paddleHeight / 2,
+					width: paddleWidth,
+					height: paddleHeight,
+					color: "black",
+					draw() {
+						ctx.fillStyle = this.color;
+						ctx.fillRect(this.x, this.y, this.width, this.height);
+					},
+				};
+			}
+
+			function draw() {
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+				paddleOne.draw();
+				paddleTwo.draw();
+				ball.draw();
+
+				const paddleOneYMin = paddleOne.y;
+				const paddleOneYMax = paddleOne.y + paddleOne.height;
+				const paddleTwoYMin = paddleTwo.y;
+				const paddleTwoYMax = paddleTwo.y + paddleTwo.height;
+
+				// Hit left paddle
+				if (
+					ball.y + ball.radius > paddleOneYMin &&
+					ball.y - ball.radius < paddleOneYMax &&
+					ball.x + ball.vx < paddleOne.x + paddleOne.width + ball.radius &&
+					ball.x > paddleOne.x
+				) {
+					ball.vx = -ball.vx;
+                    ball.adjustDeltaV(paddleOne);
+				}
+
+				// Hit right paddle
+				if (
+					ball.y + ball.radius > paddleTwoYMin &&
+					ball.y - ball.radius < paddleTwoYMax &&
+					ball.x + ball.vx > paddleTwo.x - ball.radius &&
+					ball.x < paddleTwo.x
+				) {
+					ball.vx = -ball.vx;
+                    ball.adjustDeltaV(paddleTwo);
+				}
+
+				// Hit top or bottom
+				if (ball.y + ball.vy > canvas.height - ball.radius || ball.y + ball.vy < ball.radius) {
+					ball.vy = -ball.vy;
+				}
+
+				// Missed paddle - Game Over
+				if (ball.x + ball.vx > canvas.width - ball.radius || ball.x + ball.vx < ball.radius) {
+					ball.vx = -ball.vx;
+					clearInterval(animationInterval);
+					animationInterval = null;
+				}
+
+				if (paddleUp) {
+					paddleOne.y = Math.max(paddleOne.y - paddleMoveSpeed, 0);
+				} else if (paddleDown) {
+					paddleOne.y = Math.min(paddleOne.y + paddleMoveSpeed, canvas.height - paddleOne.height);
+				}
+
+                // Move AI paddle when ball is traveling right
+				if (ball.vx > 0) {
+					moveAi(ball, paddleTwo);
+				}
+
+				ball.x += ball.vx;
+				ball.y += ball.vy;
+			}
+
+			// Move the middle of the AI paddle toward the ball
+			function moveAi(ball, paddle) {
+				// console.log('move ai', {ball, paddle});
+				const paddleMiddle = paddle.y + paddleHeight / 2;
+				const distanceToBall = paddleMiddle - ball.y;
+				const delta =
+					distanceToBall < 0 ? Math.max(-aiMoveSpeed, distanceToBall) : Math.min(aiMoveSpeed, distanceToBall);
+				// console.log(`paddleMiddle: ${paddleMiddle}, ball.y: ${ball.y}, distanceToBall: ${distanceToBall}, delta: ${delta}`);
+				paddle.y -= delta;
+				// if(Math.abs(delta) == aiMoveSpeed){
+				// console.log('delta', delta);
+				//     clearInterval(animationInterval);
+				// }
+			}
+
+			function startAnimation() {
+				if (!animationInterval) {
+					resetGame();
+					animationInterval = setInterval(draw, 10);
+				}
+			}
+
+			window.onload = initialize;
+		</script>
+	</body>
+</html>
