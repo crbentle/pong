@@ -14,13 +14,50 @@
 				background: #808080;
 				display: block;
 				margin: 0 auto;
-                cursor: none;
+				cursor: none;
+			}
+
+			.score {
+				position: absolute;
+				top: 20px;
+				text-align: center;
+			}
+
+			#player-one-score::before,
+			#player-two-score::before {
+				display: block;
+				font-weight: bold;
+			}
+
+			#player-one-score {
+				left: 100px;
+			}
+			#player-one-score::before {
+				content: "Player One";
+			}
+
+			#player-two-score {
+				right: 100px;
+			}
+			#player-two-score::before {
+				content: "Player Two";
+			}
+			#game-over{
+				font-size: 2em;
+				position:fixed;
+				top: calc(50% - 1em);
+				left: 50%;
+				transform: translate(-50%, -50%);
+				display: none;
 			}
 		</style>
 	</head>
 
 	<body>
 		<canvas id="canvas"></canvas>
+		<div id="player-one-score" class="score">0</div>
+		<div id="player-two-score" class="score">0</div>
+		<div id="game-over"></div>
 
 		<script>
 			let canvas, ctx;
@@ -29,13 +66,16 @@
 
 			let ball, paddleOne, paddleTwo;
 
+			let scores = [0, 0];
+			const scoreToWin = 3;
+
 			let animationInterval; // = setInterval(draw, 10);
 			const paddleHeight = 75;
 			const paddleWidth = 10;
 			const paddleMoveSpeed = 5;
 			const aiMoveSpeed = 3;
 			const ballXVelocity = 5;
-            const yDeflectionFactor = 5;
+			const yDeflectionFactor = 5;
 
 			function initialize() {
 				canvas = document.getElementById("canvas");
@@ -76,6 +116,14 @@
 			}
 
 			function resetGame() {
+				if(Math.max(scores[0], scores[1]) >= scoreToWin){
+					document.getElementById('game-over').style.display = 'none';
+					scores = [0, 0];
+					for(let scoreEl of document.getElementsByClassName('score')){
+						scoreEl.innerHTML = '0';
+					}
+				}
+
 				paddleUp = false;
 				paddleDown = false;
 
@@ -100,7 +148,7 @@
 						const ballStrikeRatio = (this.y - paddleMinY) / (paddleMaxY - paddleMinY);
 						// const bounceDegree = ballStrikeRatio * 180;
 
-                        // 0 is moving straight up, 1 is straigh down, 0.5 is no y movement
+						// 0 is moving straight up, 1 is straigh down, 0.5 is no y movement
 						this.vy = this.vy + (ballStrikeRatio - 0.5) * yDeflectionFactor;
 					},
 				};
@@ -150,7 +198,7 @@
 					ball.x > paddleOne.x
 				) {
 					ball.vx = -ball.vx;
-                    ball.adjustDeltaV(paddleOne);
+					ball.adjustDeltaV(paddleOne);
 				}
 
 				// Hit right paddle
@@ -161,7 +209,7 @@
 					ball.x < paddleTwo.x
 				) {
 					ball.vx = -ball.vx;
-                    ball.adjustDeltaV(paddleTwo);
+					ball.adjustDeltaV(paddleTwo);
 				}
 
 				// Hit top or bottom
@@ -170,10 +218,13 @@
 				}
 
 				// Missed paddle - Game Over
-				if (ball.x + ball.vx > canvas.width - ball.radius || ball.x + ball.vx < ball.radius) {
+				const playerOneMiss = ball.x + ball.vx < ball.radius;
+				const playerTwoMiss = ball.x + ball.vx > canvas.width - ball.radius;
+				if ( playerOneMiss || playerTwoMiss) {
 					ball.vx = -ball.vx;
 					clearInterval(animationInterval);
 					animationInterval = null;
+					scorePoint(playerOneMiss ? 2 : 1);
 				}
 
 				if (paddleUp) {
@@ -182,7 +233,7 @@
 					paddleOne.y = Math.min(paddleOne.y + paddleMoveSpeed, canvas.height - paddleOne.height);
 				}
 
-                // Move AI paddle when ball is traveling right
+				// Move AI paddle when ball is traveling right
 				if (ball.vx > 0) {
 					moveAi(ball, paddleTwo);
 				}
@@ -204,6 +255,25 @@
 				// console.log('delta', delta);
 				//     clearInterval(animationInterval);
 				// }
+			}
+
+			function scorePoint(player){
+				scores[player - 1]++;
+				let scoreEl;
+				if(player === 1){
+					scoreEl = document.getElementById('player-one-score');
+				} else {
+					scoreEl = document.getElementById('player-two-score');
+				}
+				scoreEl.innerHTML = scores[player - 1];
+
+				if(scores[player -1] >= scoreToWin){
+					// Game Over
+					const gameOverEl = document.getElementById('game-over');
+					const winnerText = `Player ${player} Wins!`;
+					gameOverEl.innerHTML = winnerText;
+					gameOverEl.style.display = 'block';
+				}
 			}
 
 			function startAnimation() {
